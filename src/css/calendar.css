@@ -37,7 +37,7 @@
   border-color: var(--color-primary);
   color: var(--color-primary);
 }
-.cal-today { background: #FFF5F4; color: var(--color-primary); }
+.cal-today { background: var(--color-bg-primary-soft); color: var(--color-primary); }
 .cal-add { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
 .cal-add:hover { background: var(--color-primary-dark); color: #fff; }
 
@@ -79,17 +79,17 @@
   border-color: var(--color-primary);
 }
 .cal-cell.other {
-  background: #F6F6F6;
+  background: var(--color-bg-other-month);
   color: var(--color-text-light);
   opacity: 0.65;
 }
 .cal-cell.weekend:not(.other) {
-  background: #FFF9F8;
+  background: var(--color-bg-weekend);
 }
 .cal-cell.today {
   border-color: var(--color-primary);
   border-width: 2px;
-  box-shadow: 0 0 0 2px rgba(232, 107, 92, 0.15);
+  box-shadow: 0 0 0 2px var(--color-primary-outline);
 }
 .cal-cell.today .cal-day-num {
   background: var(--color-primary);
@@ -104,8 +104,8 @@
 }
 .cal-cell.selected {
   border-color: var(--color-primary);
-  background: #FFF5F4;
-  box-shadow: 0 0 0 2px rgba(232, 107, 92, 0.25);
+  background: var(--color-bg-primary-soft);
+  box-shadow: 0 0 0 2px var(--color-primary-outline-strong);
 }
 
 .cal-day-num {
