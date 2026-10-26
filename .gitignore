@@ -43,3 +43,7 @@ build/
 
 # Preview temp files
 .trae-html-share-packages/
+
+# 一次性文档修复脚本（非项目代码）
+_bmad-output/fix_template_doc.py
+_bmad-output/*.py
