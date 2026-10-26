@@ -1,195 +1,181 @@
 /**
- * auth.js — 用户注册 / 登录 / 令牌 / 锁定
- * 对应 FR-22 ~ FR-26
+ * auth.js — 对接 Django 后端 API
  *
- * 数据模型（LocalStorage）：
- *   ff_users      = [{ username, passwordHash, createdAt }]
- *   ff_auth_state = { username: { failedAttempts, lockedUntil, activeToken } }
- *   ff_current_token = "abc-uuid..."    （当前登录令牌）
+ * 后端路由：
+ *   POST /api/auth/register/  → 注册
+ *   POST /api/auth/login/     → 登录（含锁定）
+ *   POST /api/auth/logout/    → 登出
+ *   GET  /api/users/          → 用户列表（分页 + IsAuthenticated）
+ *   GET  /api/users/{id}/      → 用户详情
  *
- * 锁定规则：连续 5 次密码错误 → lockedUntil = now + 300000 (5 min)
- * 锁定检查在密码哈希校验**之前**执行 → 短路拒绝
+ * 令牌机制：DRF TokenAuthentication，前端存 token 字符串到 localStorage，
+ * 每次请求受保护接口带 Header: Authorization: Token <key>
+ *
+ * 密码哈希 / 锁定逻辑全部在后端（Django check_password + UserProfile.locked_until）
+ * 前端不再存任何用户密码或哈希
  */
 (function (global) {
 
-  var MAX_ATTEMPTS = 5;
-  var LOCK_MS = 5 * 60 * 1000;            // 5 分钟
-  var TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 令牌有效期 24h（可选）
+  // ===== 后端地址（可配置）=====
+  var API_BASE = "http://127.0.0.1:8000/api";
 
-  // ===== SubtleCrypto SHA-256 哈希 =====
-  async function sha256(text) {
-    var enc = new TextEncoder();
-    var buf = enc.encode(text);
-    var digest = await crypto.subtle.digest('SHA-256', buf);
-    var bytes = Array.from(new Uint8Array(digest));
-    return bytes.map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+  function getApiBase() {
+    // 允许通过 window.FOCUSFLOW_API_BASE 覆盖（生产部署时设为同域或后端域名）
+    return (global.FOCUSFLOW_API_BASE || API_BASE).replace(/\/$/, "");
   }
 
-  // ===== 内部工具 =====
-  function getUsers() { return Storage.get('users', []); }
-  function setUsers(u) { Storage.set('users', u); }
-  function getAuthState() { return Storage.get('authState', {}); }
-  function setAuthState(s) { Storage.set('authState', s); }
+  // ===== fetch 封装 =====
+  async function apiRequest(path, method, body, token) {
+    var opts = {
+      method: method || "GET",
+      headers: { "Content-Type": "application/json" },
+      mode: "cors"
+    };
+    if (token) opts.headers["Authorization"] = "Token " + token;
+    if (body) opts.body = JSON.stringify(body);
 
-  function getUser(username) {
-    return getUsers().find(function (u) { return u.username === username; });
+    try {
+      var resp = await fetch(getApiBase() + path, opts);
+      var data = null;
+      try { data = await resp.json(); } catch (e) {}
+
+      return {
+        ok: resp.ok,
+        status: resp.status,
+        data: data,
+        _rawStatusText: resp.statusText,
+      };
+    } catch (e) {
+      // 网络不可达 → 后端未启动
+      return {
+        ok: false,
+        status: 0,
+        data: null,
+        networkError: true,
+        error: "NETWORK_ERROR",
+        message: "无法连接到后端服务，请确认 Django 已启动（python manage.py runserver）",
+      };
+    }
   }
 
-  function getState(username) {
-    var st = getAuthState();
-    if (!st[username]) st[username] = { failedAttempts: 0, lockedUntil: 0, activeToken: null, tokenCreatedAt: 0 };
-    return st[username];
+  function saveSession(token, username) {
+    Storage.set("currentToken", token);
+    Storage.set("currentUsername", username);
   }
 
-  function setState(username, newState) {
-    var st = getAuthState();
-    st[username] = newState;
-    setAuthState(st);
-  }
-
-  function genToken() {
-    return 'ff_' + Utils.genId() + '_' + Date.now().toString(36);
+  function clearSession() {
+    Storage.remove("currentToken");
+    Storage.remove("currentUsername");
   }
 
   // ===== FR-22: 注册 =====
   async function register(username, password) {
-    username = (username || '').trim();
+    username = (username || "").trim();
+    // 前端快速校验（后端会再次校验）
     if (username.length < 3 || username.length > 20) {
-      return { ok: false, error: 'USERNAME_SHORT', message: '用户名需 3-20 个字符' };
+      return { ok: false, error: "USERNAME_SHORT", message: "用户名需 3-20 个字符" };
     }
     if (password.length < 6) {
-      return { ok: false, error: 'PASSWORD_SHORT', message: '密码至少 6 位' };
-    }
-    if (getUser(username)) {
-      return { ok: false, error: 'USER_EXISTS', message: '用户名已存在' };
+      return { ok: false, error: "PASSWORD_SHORT", message: "密码至少 6 位" };
     }
 
-    var hash = await sha256(password);
-    var users = getUsers();
-    users.push({ username: username, passwordHash: hash, createdAt: new Date().toISOString() });
-    setUsers(users);
-
-    // 自动登录 + 签发令牌
-    var token = genToken();
-    var now = Date.now();
-    setState(username, {
-      failedAttempts: 0,
-      lockedUntil: 0,
-      activeToken: token,
-      tokenCreatedAt: now
+    var r = await apiRequest("/auth/register/", "POST", {
+      username: username,
+      password: password,
+      password2: password,  // Django serializer 要求
     });
-    Storage.set('currentToken', token);
-    Storage.set('currentUsername', username);
 
-    EventBus.emit('auth:login', { username: username });
-    return { ok: true, token: token, user: { username: username } };
+    if (r.networkError) return r;
+
+    if (r.ok) {
+      saveSession(r.data.token, r.data.user.username);
+      EventBus.emit("auth:login", { username: r.data.user.username });
+      return { ok: true, token: r.data.token, user: r.data.user };
+    }
+
+    // 后端返回错误 → 转成业务可读的错误码
+    var msg = (r.data && (r.data.username || r.data.password || r.data.password2 || r.data.detail));
+    if (Array.isArray(msg)) msg = msg[0];
+    msg = msg || "注册失败";
+
+    var errCode = "REGISTER_FAILED";
+    if (r.status === 400 && msg.indexOf("已存在") >= 0) errCode = "USER_EXISTS";
+    else if (msg.indexOf("用户名") >= 0) errCode = "USERNAME_INVALID";
+    else if (msg.indexOf("密码") >= 0) errCode = "PASSWORD_INVALID";
+
+    return { ok: false, error: errCode, message: String(msg) };
   }
 
-  // ===== FR-23: 登录 + FR-25: 锁定（锁定检查在密码校验之前）=====
+  // ===== FR-23: 登录（锁定逻辑后端实现）=====
   async function login(username, password) {
-    username = (username || '').trim();
-    var user = getUser(username);
-    var state = getState(username);
+    var r = await apiRequest("/auth/login/", "POST", {
+      username: username,
+      password: password,
+    });
 
-    if (!user) {
-      return { ok: false, error: 'USER_NOT_FOUND', message: '用户不存在' };
+    if (r.networkError) return r;
+
+    if (r.ok) {
+      saveSession(r.data.token, r.data.user.username);
+      EventBus.emit("auth:login", { username: r.data.user.username });
+      return { ok: true, token: r.data.token, user: r.data.user };
     }
 
-    // ★ 锁定检查在密码校验之前 —— 短路拒绝
-    var now = Date.now();
-    if (state.lockedUntil > now) {
-      var remainingMs = state.lockedUntil - now;
-      return {
-        ok: false,
-        error: 'ACCOUNT_LOCKED',
-        message: '账户已锁定，请 ' + Math.ceil(remainingMs / 1000) + ' 秒后重试',
-        lockedUntil: state.lockedUntil
-      };
-    }
-
-    // 密码哈希校验
-    var hash = await sha256(password);
-    if (hash !== user.passwordHash) {
-      state.failedAttempts = (state.failedAttempts || 0) + 1;
-
-      if (state.failedAttempts >= MAX_ATTEMPTS) {
-        state.lockedUntil = now + LOCK_MS;
-        setState(username, state);
-        return {
-          ok: false,
-          error: 'ACCOUNT_LOCKED',
-          message: '密码错误次数过多，账户已锁定 5 分钟'
-        };
-      }
-
-      setState(username, state);
-      return {
-        ok: false,
-        error: 'WRONG_PASSWORD',
-        message: '密码错误',
-        remaining: MAX_ATTEMPTS - state.failedAttempts
-      };
-    }
-
-    // 密码正确 —— 签发令牌 + 重置失败计数
-    var token = genToken();
-    state.failedAttempts = 0;
-    state.lockedUntil = 0;
-    state.activeToken = token;
-    state.tokenCreatedAt = now;
-    setState(username, state);
-
-    Storage.set('currentToken', token);
-    Storage.set('currentUsername', username);
-
-    EventBus.emit('auth:login', { username: username });
-    return { ok: true, token: token, user: { username: username } };
+    // 透传后端错误码（WRONG_PASSWORD / USER_NOT_FOUND / ACCOUNT_LOCKED）
+    return {
+      ok: false,
+      error: (r.data && r.data.error) || "LOGIN_FAILED",
+      message: (r.data && r.data.message) || "登录失败",
+      remaining: r.data && r.data.remaining,
+      lockedUntil: r.data && r.data.lockedUntil,
+    };
   }
 
   // ===== FR-24: 令牌校验（路由守卫）=====
+  // 前端只做快速可用性检查（token 字符串存在），真正有效性由后端每次请求校验
   function validateCurrentSession() {
-    var token = Storage.get('currentToken', null);
-    var username = Storage.get('currentUsername', null);
+    var token = Storage.get("currentToken", null);
+    var username = Storage.get("currentUsername", null);
     if (!token || !username) return null;
-
-    var state = getState(username);
-    if (state.activeToken !== token) return null;
-
-    // 可选：令牌过期检查（24h）
-    if (state.tokenCreatedAt && (Date.now() - state.tokenCreatedAt > TOKEN_TTL_MS)) {
-      forceLogout();
-      return null;
-    }
-
     return { username: username, token: token };
   }
 
   // ===== FR-26: 登出 =====
-  function logout() {
-    var username = Storage.get('currentUsername', null);
-    if (username) {
-      var state = getState(username);
-      state.activeToken = null;
-      state.tokenCreatedAt = 0;
-      setState(username, state);
+  async function logout() {
+    var token = Storage.get("currentToken", null);
+    var username = Storage.get("currentUsername", null);
+
+    if (token) {
+      // 通知后端删除 token（忽略失败）
+      try {
+        await apiRequest("/auth/logout/", "POST", {}, token);
+      } catch (e) {}
     }
-    Storage.remove('currentToken');
-    Storage.remove('currentUsername');
-    EventBus.emit('auth:logout', { username: username });
+
+    clearSession();
+    EventBus.emit("auth:logout", { username: username });
   }
 
   function forceLogout() {
-    Storage.remove('currentToken');
-    Storage.remove('currentUsername');
+    clearSession();
+  }
+
+  // ===== 受保护 API 的 fetch 辅助 =====
+  async function authedFetch(path, method, body) {
+    var token = Storage.get("currentToken", null);
+    if (!token) return { ok: false, error: "NOT_AUTHENTICATED", message: "未登录" };
+    return apiRequest(path, method, body, token);
   }
 
   global.Auth = {
-    MAX_ATTEMPTS: MAX_ATTEMPTS,
-    LOCK_MS: LOCK_MS,
+    MAX_ATTEMPTS: 5,
+    LOCK_MS: 5 * 60 * 1000,
+    API_BASE: API_BASE,
     register: register,
     login: login,
     validateCurrentSession: validateCurrentSession,
     logout: logout,
-    forceLogout: forceLogout
+    forceLogout: forceLogout,
+    authedFetch: authedFetch,
   };
 })(window);
