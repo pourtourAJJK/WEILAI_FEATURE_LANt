@@ -16,8 +16,8 @@
  */
 (function (global) {
 
-  // ===== 后端地址（可配置）=====
-  var API_BASE = "http://127.0.0.1:8000/api";
+  // ===== 后端地址（固定 8766；前端跑在 8765 时可跨域访问）=====
+  var API_BASE = "http://127.0.0.1:8766/api";
 
   function getApiBase() {
     // 允许通过 window.FOCUSFLOW_API_BASE 覆盖（生产部署时设为同域或后端域名）
