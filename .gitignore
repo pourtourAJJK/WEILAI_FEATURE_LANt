@@ -40,3 +40,6 @@ build/
 *.docx
 *.doc
 *.pdf
+
+# Preview temp files
+.trae-html-share-packages/
