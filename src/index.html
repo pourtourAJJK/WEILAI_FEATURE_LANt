@@ -92,7 +92,9 @@
         </div>
       </div>
       <div class="user-area">
+        <img id="user-avatar" class="user-avatar" alt="头像" hidden />
         <span class="user-name" id="user-display"></span>
+        <button class="profile-btn" id="btn-profile" title="个人中心">👤</button>
         <button class="theme-toggle" id="btn-theme-main" title="切换日/夜间模式">🌙</button>
         <button class="settings-btn" id="btn-settings" title="设置">⚙️</button>
         <button class="btn btn-secondary btn-logout" id="btn-logout">登出</button>
@@ -192,6 +194,49 @@
       <div class="modal-actions">
         <button class="btn btn-secondary" id="settings-cancel">取消</button>
         <button class="btn btn-primary" id="settings-save">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 个人中心 Modal -->
+  <div class="modal" id="profile-modal">
+    <div class="modal-content profile-modal">
+      <h3>👤 个人中心</h3>
+
+      <!-- 头像区 -->
+      <div class="profile-avatar-section">
+        <div class="avatar-circle" id="avatar-circle">
+          <img id="avatar-preview" alt="头像预览" hidden />
+          <span class="avatar-placeholder" id="avatar-placeholder">👤</span>
+        </div>
+        <div class="avatar-controls">
+          <div class="profile-username" id="profile-username">—</div>
+          <label class="btn btn-secondary profile-upload-btn">
+            选择头像
+            <input type="file" id="avatar-input" accept="image/jpeg,image/png,image/gif,image/webp" hidden />
+          </label>
+          <div class="profile-upload-tip">支持 JPG/PNG/GIF/WebP，≤ 5MB</div>
+          <div class="profile-msg" id="profile-avatar-msg"></div>
+        </div>
+      </div>
+
+      <!-- 分隔线 -->
+      <hr class="profile-divider" />
+
+      <!-- 修改密码 -->
+      <div class="profile-password-section">
+        <h4>🔐 修改密码</h4>
+        <div class="profile-pwd-form">
+          <label>当前密码<input type="password" id="pwd-old" placeholder="请输入当前密码" /></label>
+          <label>新密码（≥6位）<input type="password" id="pwd-new" placeholder="请输入新密码" /></label>
+          <label>确认新密码<input type="password" id="pwd-confirm" placeholder="再次输入新密码" /></label>
+        </div>
+        <div class="profile-msg" id="profile-pwd-msg"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="profile-close">关闭</button>
+        <button class="btn btn-primary" id="profile-pwd-submit">确认修改密码</button>
       </div>
     </div>
   </div>

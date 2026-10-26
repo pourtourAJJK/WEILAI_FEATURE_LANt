@@ -49,6 +49,20 @@
     document.getElementById('auth-page').classList.add('hidden');
     document.getElementById('main-app').classList.remove('hidden');
     document.getElementById('user-display').textContent = state.currentUser;
+    syncUserAvatar();
+  }
+
+  function syncUserAvatar() {
+    var src = typeof Auth !== 'undefined' && Auth.getAvatar ? Auth.getAvatar() : null;
+    var el = document.getElementById('user-avatar');
+    if (!el) return;
+    if (src) {
+      el.src = src;
+      el.hidden = false;
+    } else {
+      el.removeAttribute('src');
+      el.hidden = true;
+    }
   }
 
   // ===== 认证页事件绑定 =====
@@ -216,7 +230,26 @@
 
     // Esc 关闭 modal
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') closeSettings();
+      if (e.key === 'Escape') {
+        // 关 profile modal 优先（如果开着）
+        if (document.getElementById('profile-modal').classList.contains('show')) {
+          closeProfileModal();
+          return;
+        }
+        if (document.getElementById('settings-modal').classList.contains('show')) {
+          closeSettings();
+        }
+      }
+    });
+
+    // ===== 个人中心 Profile Modal =====
+    document.getElementById('btn-profile').addEventListener('click', openProfileModal);
+    document.getElementById('profile-close').addEventListener('click', closeProfileModal);
+    document.getElementById('profile-pwd-submit').addEventListener('click', handleChangePassword);
+    document.getElementById('avatar-input').addEventListener('change', handleAvatarFile);
+    // 点击 modal 遮罩关闭
+    document.getElementById('profile-modal').addEventListener('click', function (e) {
+      if (e.target.id === 'profile-modal') closeProfileModal();
     });
 
     // 空标题禁用添加按钮
@@ -255,6 +288,18 @@
     EventBus.on('timer:paused', function () { updateTimerButtons(); });
     EventBus.on('timer:resumed', function () { updateTimerButtons(); });
     EventBus.on('timer:finished', onTimerFinished);
+
+    // 头像更新全局联动（Django / LS 两条路径都 emit）
+    EventBus.on('auth:avatar-updated', function (info) {
+      syncUserAvatar();
+      var preview = document.getElementById('avatar-preview');
+      var placeholder = document.getElementById('avatar-placeholder');
+      if (preview && info && info.avatar) {
+        preview.src = info.avatar;
+        preview.hidden = false;
+        if (placeholder) placeholder.hidden = true;
+      }
+    });
   }
 
   // ===== 任务管理交互 =====
@@ -442,6 +487,110 @@
     closeSettings();
     updateContinuousCount();
     EventBus.emit('data:changed');
+  }
+
+  // ===== 个人中心 Profile Modal =====
+  function openProfileModal() {
+    // 填充用户名
+    var un = document.getElementById('user-display');
+    var nameEl = document.getElementById('profile-username');
+    if (un && nameEl) nameEl.textContent = un.textContent || '未登录';
+    // 重置密码表单
+    var oldP = document.getElementById('pwd-old');
+    var newP = document.getElementById('pwd-new');
+    var confP = document.getElementById('pwd-confirm');
+    if (oldP) { oldP.value = ''; newP.value = ''; confP.value = ''; }
+    // 重置消息
+    document.getElementById('profile-avatar-msg').textContent = '';
+    document.getElementById('profile-avatar-msg').className = 'profile-msg';
+    document.getElementById('profile-pwd-msg').textContent = '';
+    document.getElementById('profile-pwd-msg').className = 'profile-msg';
+    // 同步头像预览
+    refreshAvatarPreview();
+    document.getElementById('profile-modal').classList.add('show');
+  }
+
+  function closeProfileModal() {
+    document.getElementById('profile-modal').classList.remove('show');
+  }
+
+  function refreshAvatarPreview() {
+    var src = typeof Auth !== 'undefined' && Auth.getAvatar ? Auth.getAvatar() : null;
+    var preview = document.getElementById('avatar-preview');
+    var placeholder = document.getElementById('avatar-placeholder');
+    if (!preview) return;
+    if (src) {
+      preview.src = src;
+      preview.hidden = false;
+      if (placeholder) placeholder.hidden = true;
+    } else {
+      preview.removeAttribute('src');
+      preview.hidden = true;
+      if (placeholder) placeholder.hidden = false;
+    }
+  }
+
+  function handleAvatarFile(e) {
+    var file = e.target.files && e.target.files[0];
+    var msg = document.getElementById('profile-avatar-msg');
+    if (!file) return;
+    // 即时本地预览（base64，不等上传）
+    var reader = new FileReader();
+    reader.onload = function () {
+      var preview = document.getElementById('avatar-preview');
+      var placeholder = document.getElementById('avatar-placeholder');
+      preview.src = reader.result;
+      preview.hidden = false;
+      if (placeholder) placeholder.hidden = true;
+    };
+    reader.readAsDataURL(file);
+    // 上传
+    if (typeof Auth === 'undefined' || !Auth.uploadAvatar) {
+      setProfileMsg(msg, '上传模块未就绪', 'error');
+      return;
+    }
+    setProfileMsg(msg, '上传中…', '');
+    Auth.uploadAvatar(file).then(function (res) {
+      if (res.ok) {
+        setProfileMsg(msg, '✅ 头像已更新', 'success');
+      } else {
+        setProfileMsg(msg, '❌ ' + (res.message || '上传失败'), 'error');
+      }
+    }).catch(function (err) {
+      setProfileMsg(msg, '❌ 上传异常：' + (err.message || '未知'), 'error');
+    });
+  }
+
+  function handleChangePassword() {
+    var oldP = document.getElementById('pwd-old').value;
+    var newP = document.getElementById('pwd-new').value;
+    var confP = document.getElementById('pwd-confirm').value;
+    var msg = document.getElementById('profile-pwd-msg');
+    setProfileMsg(msg, '提交中…', '');
+    if (typeof Auth === 'undefined' || !Auth.changePassword) {
+      setProfileMsg(msg, '认证模块未就绪', 'error');
+      return;
+    }
+    Auth.changePassword(oldP, newP).then(function (res) {
+      if (res.ok) {
+        setProfileMsg(msg, '✅ ' + (res.message || '密码已修改，请重新登录'), 'success');
+        // 强制重新登录（Auth.logout 已由后端自动删 token，前端也要清）
+        setTimeout(function () {
+          if (typeof Auth !== 'undefined') Auth.forceLogout();
+          location.reload();
+        }, 800);
+      } else {
+        setProfileMsg(msg, '❌ ' + (res.message || '修改失败'), 'error');
+      }
+    }).catch(function (err) {
+      setProfileMsg(msg, '❌ 提交异常：' + (err.message || '未知'), 'error');
+    });
+  }
+
+  function setProfileMsg(el, text, kind) {
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'profile-msg' + (kind ? ' ' + kind : '');
   }
 
   // ===== 渲染 =====
