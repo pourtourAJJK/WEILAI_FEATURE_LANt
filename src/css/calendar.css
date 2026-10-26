@@ -1,0 +1,223 @@
+/* ===== 日历组件样式（匹配参考图风格）===== */
+
+/* 日历包裹 */
+.calendar-section {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+/* 工具栏 */
+.cal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.cal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+  min-width: 120px;
+  text-align: center;
+}
+.cal-nav, .cal-today, .cal-add {
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cal-nav:hover, .cal-today:hover, .cal-add:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.cal-today { background: #FFF5F4; color: var(--color-primary); }
+.cal-add { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+.cal-add:hover { background: var(--color-primary-dark); color: #fff; }
+
+/* 星期头 */
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+.cal-wd {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 6px 0;
+  border-bottom: 2px solid var(--color-border);
+}
+.cal-wd.weekend { color: var(--color-primary); }
+
+/* 日历网格 */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.cal-cell {
+  min-height: 92px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  background: var(--color-bg);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cal-cell:hover {
+  border-color: var(--color-primary);
+}
+.cal-cell.other {
+  background: #F6F6F6;
+  color: var(--color-text-light);
+  opacity: 0.65;
+}
+.cal-cell.weekend:not(.other) {
+  background: #FFF9F8;
+}
+.cal-cell.today {
+  border-color: var(--color-primary);
+  border-width: 2px;
+  box-shadow: 0 0 0 2px rgba(232, 107, 92, 0.15);
+}
+.cal-cell.today .cal-day-num {
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+.cal-cell.selected {
+  border-color: var(--color-primary);
+  background: #FFF5F4;
+  box-shadow: 0 0 0 2px rgba(232, 107, 92, 0.25);
+}
+
+.cal-day-num {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 4px;
+  width: 22px;
+  text-align: center;
+}
+.cal-cell.other .cal-day-num {
+  color: var(--color-text-light);
+}
+
+/* 工作计划条（匹配参考图横向条样式）*/
+.cal-plans {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-height: 0;
+}
+.cal-plan-bar {
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 0.15s, transform 0.15s;
+  line-height: 1.5;
+}
+.cal-plan-bar:hover {
+  opacity: 0.88;
+  transform: translateX(1px);
+}
+.cal-plan-bar .cal-plan-time {
+  font-weight: 600;
+  opacity: 0.9;
+  margin-right: 3px;
+}
+
+/* 多条时的处理：超过 3 条隐藏 +N */
+.cal-cell .cal-plans {
+  position: relative;
+}
+
+/* 编辑弹窗 */
+.plan-modal {
+  max-width: 440px;
+  padding: 28px;
+}
+.plan-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.plan-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.plan-form input[type="text"],
+.plan-form input[type="time"],
+.plan-form select,
+.plan-form textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+.plan-form input[type="text"]:focus,
+.plan-form input[type="time"]:focus,
+.plan-form select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+.plan-row {
+  display: flex;
+  gap: 10px;
+}
+.plan-row label { flex: 1; }
+
+.btn-danger {
+  background: var(--color-danger);
+  color: #fff;
+}
+.btn-danger:hover { background: #c0392b; }
+
+/* 日历在 app 中的定位：放在顶部统计栏 + 主体之间 */
+.calendar-container {
+  width: 100%;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .cal-grid { gap: 3px; }
+  .cal-cell { min-height: 72px; padding: 3px 4px; }
+  .cal-plan-bar { font-size: 10px; padding: 1px 4px; }
+  .cal-day-num { font-size: 12px; width: 18px; }
+  .cal-toolbar { font-size: 12px; }
+  .cal-nav, .cal-today, .cal-add { padding: 4px 10px; font-size: 12px; }
+}
+
+@media (max-width: 480px) {
+  .cal-cell { min-height: 58px; }
+  .cal-plan-time { display: none; } /* 超窄屏只显示标题 */
+  .calendar-section { padding: 12px; }
+}

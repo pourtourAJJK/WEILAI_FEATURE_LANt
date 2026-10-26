@@ -1,9 +1,9 @@
-/**
- * app.js — FocusFlow 主控制器（带登录守卫）
+﻿/**
+ * app.js — LAN·FocusFlow 主控制器（带登录守卫）
  * 编排：认证 → 任务管理 → 番茄钟 → 联动 → 统计 → 设置
  */
 (function () {
-  console.log('[FocusFlow] 启动中...');
+  console.log('[LAN·FocusFlow] 启动中...');
 
   var state = {
     tasks: [],
@@ -23,7 +23,7 @@
     if (!session) {
       showAuthPage();
       bindAuthEvents();
-      console.log('[FocusFlow] 未登录，显示认证页');
+      console.log('[LAN·FocusFlow] 未登录，显示认证页');
       return;
     }
 
@@ -36,7 +36,7 @@
   function showAuthPage() {
     document.getElementById('auth-page').classList.remove('hidden');
     document.getElementById('main-app').classList.add('hidden');
-    document.title = 'FocusFlow — 登录';
+    document.title = 'LAN·FocusFlow — 登录';
   }
 
   function showMainApp() {
@@ -131,9 +131,16 @@
     bindMainDomEvents();
     bindBusEvents();
     updateContinuousCount();
+
+    // 初始化日历组件
+    var calEl = document.getElementById('calendar-container');
+    if (calEl && typeof Calendar !== 'undefined') {
+      Calendar.init(calEl);
+    }
+
     renderAll();
 
-    console.log('[FocusFlow] ✅ 启动完成, 用户:', state.currentUser);
+    console.log('[LAN·FocusFlow] ✅ 启动完成, 用户:', state.currentUser);
   }
 
   // ===== 主应用 DOM 事件 =====
@@ -524,7 +531,7 @@
   }
 
   function updatePageTitle(seconds) {
-    document.title = Utils.formatTime(seconds) + ' — FocusFlow';
+    document.title = Utils.formatTime(seconds) + ' — LAN·FocusFlow';
   }
 
   // ===== 启动 =====
