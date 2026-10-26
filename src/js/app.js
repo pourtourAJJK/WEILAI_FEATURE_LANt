@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * app.js — LAN·FocusFlow 主控制器（带登录守卫）
  * 编排：认证 → 任务管理 → 番茄钟 → 联动 → 统计 → 设置
  */
@@ -19,6 +19,12 @@
 
   // ===== 启动入口（带路由守卫）=====
   async function boot() {
+    // 1) 初始化主题（防闪烁脚本已先行写入 data-theme）
+    if (typeof Theme !== 'undefined') {
+      Theme.init();
+      updateThemeButtons();
+    }
+
     var session = Auth.validateCurrentSession();
     if (!session) {
       showAuthPage();
@@ -107,6 +113,10 @@
         showAuthError('register-error', res.message || '注册失败');
       }
     });
+
+    // 主题切换（登录页）
+    var themeAuth = document.getElementById('btn-theme-auth');
+    if (themeAuth) themeAuth.addEventListener('click', toggleTheme);
   }
 
   function showAuthError(id, msg) {
@@ -119,6 +129,23 @@
     document.getElementById('login-error').classList.remove('show');
     document.getElementById('register-error').textContent = '';
     document.getElementById('register-error').classList.remove('show');
+  }
+
+  // ===== 主题切换辅助 =====
+  function toggleTheme() {
+    if (typeof Theme === 'undefined') return;
+    Theme.toggle();
+    updateThemeButtons();
+  }
+  function updateThemeButtons() {
+    if (typeof Theme === 'undefined') return;
+    var isDark = Theme.getCurrent() === 'dark';
+    var icon = isDark ? '☀️' : '🌙';
+    var els = ['btn-theme-auth', 'btn-theme-main'];
+    els.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = icon;
+    });
   }
 
   // ===== 主应用初始化 =====
@@ -198,6 +225,10 @@
       form.querySelector('button[type="submit"]').disabled = !titleInput.value.trim();
     });
     form.querySelector('button[type="submit"]').disabled = true;
+
+    // 主题切换（主应用 header）
+    var themeMain = document.getElementById('btn-theme-main');
+    if (themeMain) themeMain.addEventListener('click', toggleTheme);
   }
 
   // ===== EventBus 事件 =====
