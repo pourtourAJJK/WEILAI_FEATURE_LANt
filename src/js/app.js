@@ -1,41 +1,153 @@
 /**
- * app.js — FocusFlow 主控制器（完整版）
- * 编排：任务管理 + 番茄钟 + 联动 + 统计 + 设置
- * 架构参考 architecture.md（分层 + EventBus 观察者模式）
+ * app.js — FocusFlow 主控制器（带登录守卫）
+ * 编排：认证 → 任务管理 → 番茄钟 → 联动 → 统计 → 设置
  */
 (function () {
   console.log('[FocusFlow] 启动中...');
 
-  // ===== 运行时 state（AD-2：单一 state 对象）=====
   var state = {
     tasks: [],
     logs: [],
     settings: null,
     activeTaskId: null,
-    continuousCount: 0,       // 今日连续完成番茄数
-    currentFilter: 'all'
+    continuousCount: 0,
+    currentFilter: 'all',
+    currentUser: null
   };
 
-  // 计时器实例
   var timer = new Timer();
 
-  // ===== 初始化 =====
-  function init() {
+  // ===== 启动入口（带路由守卫）=====
+  async function boot() {
+    var session = Auth.validateCurrentSession();
+    if (!session) {
+      showAuthPage();
+      bindAuthEvents();
+      console.log('[FocusFlow] 未登录，显示认证页');
+      return;
+    }
+
+    // 已登录
+    state.currentUser = session.username;
+    showMainApp();
+    await initMainApp();
+  }
+
+  function showAuthPage() {
+    document.getElementById('auth-page').classList.remove('hidden');
+    document.getElementById('main-app').classList.add('hidden');
+    document.title = 'FocusFlow — 登录';
+  }
+
+  function showMainApp() {
+    document.getElementById('auth-page').classList.add('hidden');
+    document.getElementById('main-app').classList.remove('hidden');
+    document.getElementById('user-display').textContent = state.currentUser;
+  }
+
+  // ===== 认证页事件绑定 =====
+  function bindAuthEvents() {
+    // Tab 切换
+    document.querySelectorAll('.auth-tab').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        document.querySelectorAll('.auth-tab').forEach(function (t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        var which = tab.dataset.tab;
+        document.getElementById('login-form').classList.toggle('hidden', which !== 'login');
+        document.getElementById('register-form').classList.toggle('hidden', which !== 'register');
+        clearAuthErrors();
+      });
+    });
+
+    // 登录
+    document.getElementById('login-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var username = document.getElementById('login-username').value;
+      var password = document.getElementById('login-password').value;
+      var btn = document.getElementById('login-btn');
+      btn.disabled = true; btn.textContent = '登录中...';
+
+      var res = await Auth.login(username, password);
+      btn.disabled = false; btn.textContent = '登 录';
+
+      if (res.ok) {
+        state.currentUser = res.user.username;
+        showMainApp();
+        await initMainApp();
+      } else {
+        showAuthError('login-error', res.message || '登录失败');
+        if (res.error === 'WRONG_PASSWORD' && typeof res.remaining === 'number') {
+          showAuthError('login-error', '密码错误，还可尝试 ' + res.remaining + ' 次');
+        }
+      }
+    });
+
+    // 注册
+    document.getElementById('register-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var username = document.getElementById('register-username').value;
+      var password = document.getElementById('register-password').value;
+      var password2 = document.getElementById('register-password2').value;
+      var btn = document.getElementById('register-btn');
+
+      if (password !== password2) {
+        showAuthError('register-error', '两次密码不一致');
+        return;
+      }
+
+      btn.disabled = true; btn.textContent = '注册中...';
+      var res = await Auth.register(username, password);
+      btn.disabled = false; btn.textContent = '注 册';
+
+      if (res.ok) {
+        state.currentUser = res.user.username;
+        showMainApp();
+        await initMainApp();
+      } else {
+        showAuthError('register-error', res.message || '注册失败');
+      }
+    });
+  }
+
+  function showAuthError(id, msg) {
+    var el = document.getElementById(id);
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+  function clearAuthErrors() {
+    document.getElementById('login-error').textContent = '';
+    document.getElementById('login-error').classList.remove('show');
+    document.getElementById('register-error').textContent = '';
+    document.getElementById('register-error').classList.remove('show');
+  }
+
+  // ===== 主应用初始化 =====
+  async function initMainApp() {
     Settings.ensureInitialized();
     state.tasks = Storage.get('tasks', []);
     state.settings = Settings.getSettings();
     state.logs = Storage.get('pomodoroLogs', []);
 
-    bindDomEvents();
+    bindMainDomEvents();
     bindBusEvents();
     updateContinuousCount();
     renderAll();
 
-    console.log('[FocusFlow] ✅ 启动完成');
+    console.log('[FocusFlow] ✅ 启动完成, 用户:', state.currentUser);
   }
 
-  // ===== DOM 事件绑定 =====
-  function bindDomEvents() {
+  // ===== 主应用 DOM 事件 =====
+  function bindMainDomEvents() {
+    // 登出
+    document.getElementById('btn-logout').addEventListener('click', function () {
+      if (confirm('确定要登出吗？')) {
+        Auth.logout();
+        state.currentUser = null;
+        showAuthPage();
+        bindAuthEvents();
+      }
+    });
+
     // 添加任务表单
     var form = document.getElementById('add-task-form');
     form.addEventListener('submit', onSubmitTask);
@@ -91,24 +203,19 @@
       }
     });
 
-    // 计时 tick → 数字更新
     EventBus.on('timer:tick', function (sec) {
       var timerEl = document.getElementById('timer-number');
       timerEl.textContent = Utils.formatTime(sec);
       updatePageTitle(sec);
     });
 
-    // 计时开始 → 按钮切换
     EventBus.on('timer:started', function () {
       updateTimerButtons();
       updateSessionBadge();
     });
 
-    // 计时暂停 / 恢复
     EventBus.on('timer:paused', function () { updateTimerButtons(); });
     EventBus.on('timer:resumed', function () { updateTimerButtons(); });
-
-    // 计时结束 → 联动处理
     EventBus.on('timer:finished', onTimerFinished);
   }
 
@@ -121,7 +228,6 @@
 
     TaskManager.createTask(state, { title: title, description: desc, priority: priority });
 
-    // 清空表单
     e.target.reset();
     document.getElementById('task-title').focus();
     e.target.querySelector('button[type="submit"]').disabled = true;
@@ -132,36 +238,30 @@
     if (!card) return;
     var taskId = card.dataset.id;
 
-    // 删除按钮
     if (e.target.closest('.btn-delete')) {
       e.stopPropagation();
       if (confirm('确定删除这个任务吗？')) {
         TaskManager.deleteTask(state, taskId);
-        // 联动：正在计时的任务被删除 → 解绑 + 回到 idle
         if (state.activeTaskId === taskId) {
           state.activeTaskId = null;
-          // 如果当前有计时 → 跳过
           if (timer.state !== 'idle') timer.skip();
         }
       }
       return;
     }
 
-    // 编辑按钮 → inline edit
     if (e.target.closest('.btn-edit')) {
       e.stopPropagation();
       inlineEditTask(card, taskId);
       return;
     }
 
-    // 完成勾选
     if (e.target.closest('.task-checkbox')) {
       e.stopPropagation();
       TaskManager.toggleDone(state, taskId);
       return;
     }
 
-    // 点击卡片 → 选中联动
     state.activeTaskId = state.activeTaskId === taskId ? null : taskId;
     renderTaskList();
     renderCurrentTask();
@@ -186,9 +286,7 @@
 
     function finish() {
       var newTitle = input.value.trim().slice(0, 80);
-      if (newTitle) {
-        TaskManager.updateTask(state, taskId, { title: newTitle });
-      }
+      if (newTitle) TaskManager.updateTask(state, taskId, { title: newTitle });
       renderTaskList();
     }
     input.addEventListener('blur', finish);
@@ -200,29 +298,20 @@
 
   // ===== 番茄钟交互 =====
   function onStartTimer() {
-    var sec;
-    var mode;
-
+    var sec, mode;
     if (timer.mode === 'focus' && timer.state !== 'idle') return;
     if (timer.state === 'shortBreak' || timer.state === 'longBreak') return;
-
-    // 如果上一轮结束后应该进入休息 → 自动续上
-    // 否则默认启动专注
     sec = state.settings.focusMinutes * 60;
     mode = 'focus';
-
     timer.start(mode, sec, {
       onComplete: onFocusComplete,
-      onSkip: function () { /* 跳过不触发任何额外逻辑 */ }
+      onSkip: function () {}
     });
   }
 
   function onPauseResume() {
-    if (timer.state.endsWith('-paused')) {
-      timer.resume();
-    } else if (timer.state !== 'idle') {
-      timer.pause();
-    }
+    if (timer.state.endsWith('-paused')) timer.resume();
+    else if (timer.state !== 'idle') timer.pause();
   }
 
   function onSkip() {
@@ -231,20 +320,14 @@
   }
 
   function onFocusComplete() {
-    // 完整结束专注番茄
-    // 1. 触发提示音
     if (state.settings.soundEnabled) Utils.playTomatoDone();
 
-    // 2. Good Job 动画
     var timerEl = document.getElementById('timer-number');
     timerEl.classList.add('goodjob');
     timerEl.classList.add('resting');
     timerEl.textContent = 'GOOD JOB ✨';
-    setTimeout(function () {
-      timerEl.classList.remove('goodjob');
-    }, 1500);
+    setTimeout(function () { timerEl.classList.remove('goodjob'); }, 1500);
 
-    // 3. 联动 + 写 log + +1 番茄
     if (state.activeTaskId) {
       TaskManager.updateTask(state, state.activeTaskId, {
         pomodoroCount: (state.tasks.find(function (t) { return t.id === state.activeTaskId; }).pomodoroCount || 0) + 1
@@ -259,7 +342,6 @@
     Storage.set('pomodoroLogs', state.logs);
     EventBus.emit('data:changed');
 
-    // 4. 连续计数 + 判断休息类型
     state.continuousCount += 1;
     Storage.set('continuousCount_' + Utils.todayStart(), state.continuousCount);
     updateContinuousCount();
@@ -270,7 +352,6 @@
       ? state.settings.longBreakMinutes * 60
       : state.settings.shortBreakMinutes * 60;
 
-    // 5. 自动启动休息
     setTimeout(function () {
       timer.start(breakMode, breakSec, {
         onComplete: onBreakComplete,
@@ -286,16 +367,12 @@
   }
 
   function onTimerFinished(info) {
-    // 跳过或手动结束的情况
-    if (!info.completed) {
-      renderIdleTimerDisplay();
-    }
+    if (!info.completed) renderIdleTimerDisplay();
     updateTimerButtons();
     updateSessionBadge();
   }
 
   function updateContinuousCount() {
-    // 从 LocalStorage 读取今日连续计数
     var todayKey = 'continuousCount_' + Utils.todayStart();
     state.continuousCount = parseInt(localStorage.getItem(todayKey) || '0', 10) || 0;
   }
@@ -329,7 +406,7 @@
     EventBus.emit('data:changed');
   }
 
-  // ===== 渲染层 =====
+  // ===== 渲染 =====
   function renderAll() {
     renderTaskList();
     renderTimerButtons();
@@ -354,7 +431,6 @@
     }
     empty.classList.add('hidden');
 
-    // 待办在前，已完成在后
     var todo = tasks.filter(function (t) { return t.status !== 'done'; });
     var done = tasks.filter(function (t) { return t.status === 'done'; });
     var ordered = todo.concat(done);
@@ -402,7 +478,6 @@
     var start = document.getElementById('btn-start');
     var pause = document.getElementById('btn-pause');
     var skip = document.getElementById('btn-skip');
-
     var isIdle = timer.state === 'idle';
     var isPaused = timer.state.endsWith('-paused');
 
@@ -410,7 +485,6 @@
     pause.disabled = isIdle;
     skip.disabled = isIdle;
 
-    // 休息阶段隐藏"开始专注"语义
     if (timer.state === 'shortBreak' || timer.state === 'longBreak') {
       start.disabled = true;
       pause.disabled = false;
@@ -454,5 +528,5 @@
   }
 
   // ===== 启动 =====
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', boot);
 })();
