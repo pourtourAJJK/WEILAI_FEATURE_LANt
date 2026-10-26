@@ -596,7 +596,7 @@
   // ===== 渲染 =====
   function renderAll() {
     renderTaskList();
-    renderTimerButtons();
+    updateTimerButtons();
     renderIdleTimerDisplay();
     renderCurrentTask();
     renderStats();
