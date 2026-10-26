@@ -167,9 +167,9 @@ chore:    构建 / 配置 / 杂项
 2. ✅ 创建 `_bmad-output/planning-artifacts/` 和 `_bmad-output/implementation-artifacts/` 两个目录
 3. ✅ 创建本文件 `AGENTS.md`（复制当前这份 prompt 内容）
 4. ✅ 创建 `.gitignore`（排除 `.trae/`、node_modules、__pycache__、.env、*.sqlite3 等）
-5. ⬜ 用 BMAD Skill `bmad-product-brief` 开始**阶段一：需求分析**
-6. ⬜ 产物写入后立即 `git commit -m "docs: 完成产品简报"`
-7. ⬜ 进入阶段二：`bmad-prd` + `bmad-architecture` + `bmad-create-epics-and-stories`
-8. ⬜ 阶段二产物写完 → `git commit -m "docs: 完成架构设计与任务拆分"`
-9. ⬜ 阶段三：建 feature 分支 → 逐个任务实现 → 每个功能 commit
-10. ⬜ 阶段四：沙箱/E2E 验证 → 修复 bug → 最终 commit
+5. ✅ 阶段一：需求分析 → [product-brief.md](_bmad-output/planning-artifacts/product-brief.md) + [prd.md](_bmad-output/planning-artifacts/prd.md) — commit `3045f21`
+6. ✅ 阶段二：规划设计 → [architecture.md](_bmad-output/planning-artifacts/architecture.md) + [epics-and-stories.md](_bmad-output/planning-artifacts/epics-and-stories.md) — commit `411b650`
+7. ✅ 阶段三：开发实现 → `feature/skeleton` + `feature/full-implementation` 两个分支 → merge `254c121` + `1bb385f`（merge commit `76dd259`）
+8. ✅ 阶段四：验证改进 → 34/34 逻辑测试 PASS → [test-report.md](_bmad-output/implementation-artifacts/test-report.md) + [build-report.md](_bmad-output/implementation-artifacts/build-report.md) + [iteration-1.md](_bmad-output/implementation-artifacts/iteration-1.md) — commit `570750d`（merge commit `d7dfb7e`）
+9. ✅ 两次 feature 分支 `--no-ff` merge 痕迹：`76dd259`（full-implementation）、`d7dfb7e`（verify）
+10. ✅ 最终仓库 HEAD commit `d7dfb7e`，BMAD 产物全部位于 `_bmad-output/` 下
