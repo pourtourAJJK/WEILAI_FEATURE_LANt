@@ -90,6 +90,8 @@
 
     render(container);
     EventBus.on("calendar:changed", function () { render(container); });
+    // 任务 CRUD 也驱动日历重绘（任务条在日历容器里）
+    EventBus.on("data:changed", function () { render(container); });
   }
 
   function prevMonth(container) {
@@ -159,6 +161,26 @@
     html += '  <button class="cal-nav" data-act="next">▶</button>';
     html += '  <button class="cal-today" data-act="today">今天</button>';
     html += '  <button class="cal-add" data-act="add-day">+ 选中日工作计划</button>';
+    html += '</div>';
+
+    // —— 任务横向条（flex 横排 + overflow-x:auto）——
+    var tasks = Storage.get("tasks", []);
+    var openTasks = tasks.filter(function (t) { return t.status !== "done"; });
+    html += '<div class="cal-task-strip">';
+    if (openTasks.length === 0) {
+      html += '<div class="cal-task-empty">📭 暂无待办任务（在左侧任务区添加）</div>';
+    } else {
+      openTasks.forEach(function (t) {
+        var priCls = "cal-task-item pri-" + (t.priority || "medium");
+        var title = (t.title || "未命名任务").replace(/"/g, "&quot;");
+        var priIcon = t.priority === "high" ? "🔴" : t.priority === "low" ? "🟢" : "🟡";
+        html += '<div class="' + priCls + '" data-task-id="' + t.id + '" title="' + title + '">';
+        html += '<span class="cal-task-pri">' + priIcon + '</span>';
+        html += '<span class="cal-task-title">' + title + '</span>';
+        if (t.pomodoroCount) html += '<span class="cal-task-pomo">🍅×' + t.pomodoroCount + '</span>';
+        html += '</div>';
+      });
+    }
     html += '</div>';
 
     html += '<div class="cal-weekdays">';
