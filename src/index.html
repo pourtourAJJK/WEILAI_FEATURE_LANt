@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FocusFlow — 智能待办清单与番茄钟</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- 顶部统计栏 -->
+    <header class="stats-bar">
+      <div class="logo">🍅 FocusFlow</div>
+      <div class="stats-cards">
+        <div class="stat-card">
+          <span class="stat-label">今日完成</span>
+          <span class="stat-value" id="stat-done-tasks">0</span>
+          <span class="stat-unit">个任务</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">今日专注</span>
+          <span class="stat-value" id="stat-focus-time">0</span>
+          <span class="stat-unit">分钟</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">今日番茄</span>
+          <span class="stat-value" id="stat-pomodoros">0</span>
+          <span class="stat-unit">个</span>
+        </div>
+      </div>
+      <button class="settings-btn" id="btn-settings" title="设置">⚙️</button>
+    </header>
+
+    <!-- 主体：左侧任务 + 右侧番茄钟 -->
+    <main class="main-content">
+      <!-- 左侧：任务管理区 -->
+      <section class="task-section">
+        <div class="task-section-header">
+          <h2>📋 我的任务</h2>
+          <div class="filter-tabs">
+            <button class="filter-tab active" data-filter="all">全部</button>
+            <button class="filter-tab" data-filter="todo">待办</button>
+            <button class="filter-tab" data-filter="done">已完成</button>
+          </div>
+        </div>
+
+        <!-- 添加任务表单 -->
+        <form class="add-task-form" id="add-task-form">
+          <input type="text" id="task-title" placeholder="任务标题（必填）" required maxlength="80" />
+          <textarea id="task-desc" placeholder="任务描述（可选）" rows="2" maxlength="200"></textarea>
+          <div class="form-row">
+            <select id="task-priority">
+              <option value="low">🟢 低优先级</option>
+              <option value="medium" selected>🟡 中优先级</option>
+              <option value="high">🔴 高优先级</option>
+            </select>
+            <button type="submit" class="btn btn-primary">+ 添加任务</button>
+          </div>
+        </form>
+
+        <!-- 任务列表 -->
+        <div class="task-list" id="task-list"></div>
+        <div class="empty-state" id="empty-tasks">
+          <p>✨ 还没有任务，添加一个开始吧！</p>
+        </div>
+      </section>
+
+      <!-- 右侧：番茄钟区 -->
+      <section class="timer-section">
+        <div class="timer-display">
+          <div class="session-badge" id="session-badge">准备就绪</div>
+          <div class="timer-number" id="timer-number">25:00</div>
+          <div class="current-task" id="current-task">
+            <span class="ct-label">当前任务：</span>
+            <span class="ct-value" id="ct-value">未选择任务</span>
+          </div>
+        </div>
+
+        <div class="timer-controls">
+          <button class="btn btn-start" id="btn-start">▶ 开始专注</button>
+          <button class="btn btn-secondary" id="btn-pause" disabled>⏸ 暂停</button>
+          <button class="btn btn-skip" id="btn-skip" disabled>⏭ 跳过</button>
+        </div>
+
+        <div class="break-controls">
+          <div class="pomodoro-counter">已完成番茄：<span id="pomodoro-total">0</span></div>
+          <div class="continuous-counter">连续番茄：<span id="continuous-count">0</span> / <span id="long-break-every">4</span></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 设置 Modal -->
+  <div class="modal" id="settings-modal">
+    <div class="modal-content">
+      <h3>⚙️ 设置</h3>
+      <div class="settings-form">
+        <label>
+          专注时长（分钟，5-60）
+          <input type="number" id="set-focus" min="5" max="60" value="25" />
+        </label>
+        <label>
+          短休息（分钟，1-15）
+          <input type="number" id="set-short" min="1" max="15" value="5" />
+        </label>
+        <label>
+          长休息（分钟，10-30）
+          <input type="number" id="set-long" min="10" max="30" value="15" />
+        </label>
+        <label>
+          长休息间隔（连续 N 个番茄触发，2-8）
+          <input type="number" id="set-long-every" min="2" max="8" value="4" />
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="set-sound" checked />
+          番茄结束提示音
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="settings-cancel">取消</button>
+        <button class="btn btn-primary" id="settings-save">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 提示音脚本 -->
+  <script src="js/event-bus.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/task-manager.js"></script>
+  <script src="js/timer.js"></script>
+  <script src="js/stats.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
