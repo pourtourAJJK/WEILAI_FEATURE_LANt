@@ -227,20 +227,64 @@ FocusFlow 让"添加一个任务 → 点开始 → 25 分钟后听到提示音 �
 #### FR-21: 数据初始化
 首次访问时，自动创建 LocalStorage 的三个 key：`_tasks`（空数组）、`_settings`（默认值）、`_stats`（空对象）。
 
+### 4.7 用户注册与登录（v1 新增）
+
+**Description**: 支持账户注册与登录，校验自建账户身份，登录成功后签发本地令牌，页面刷新通过令牌自动恢复登录状态。连续输错密码 5 次后账户自动锁定 5 分钟，锁定期间即使密码正确也无法登录。
+
+#### FR-22: 用户注册
+用户可以输入用户名（3-20 字符）和密码（至少 6 位）创建账户。用户名唯一。密码使用 SubtleCrypto SHA-256 哈希后存 LocalStorage（不存明文）。注册成功后自动登录。
+
+**Consequences (testable):**
+- 重复用户名 → 返回 `{ok:false, error:'USER_EXISTS'}`
+- 用户名过短 → 返回 `{ok:false, error:'USERNAME_SHORT'}`
+- 密码过短 → 返回 `{ok:false, error:'PASSWORD_SHORT'}`
+- 成功 → 返回 `{ok:true, token, user: {username}}`
+
+#### FR-23: 用户登录（含令牌签发）
+用户输入用户名密码 → 校验密码哈希 → 成功则签发一个随机 token（UUID 格式）存 LocalStorage `ff_current_token`，同时把 token 写入 `ff_auth_state[username].activeToken`。
+
+**Consequences (testable):**
+- 密码正确 + 未锁定 → `{ok:true, token}`
+- 密码错误 → `{ok:false, error:'WRONG_PASSWORD', remaining: N}` N 是剩余尝试次数
+- 账户不存在 → `{ok:false, error:'USER_NOT_FOUND'}`
+- 锁定期间 → `{ok:false, error:'ACCOUNT_LOCKED', lockedUntil: timestamp}`
+
+#### FR-24: 身份令牌校验（路由守卫）
+每次页面初始化时读取 `ff_current_token`，校验是否在 `ff_auth_state[username].activeToken` 中匹配；未登录或令牌无效 → 显示登录页；有效 → 直接进入主应用。
+
+**Consequences (testable):**
+- 浏览器刷新后保持登录状态
+- 手动篡改 LocalStorage token → 校验失败 → 被踢回登录页
+
+#### FR-25: 登录失败锁定机制
+连续 5 次登录失败后，该账户的 `authState.lockedUntil = Date.now() + 300000`（5 分钟后自动解锁）。锁定期间**在密码校验之前**就短路拒绝。
+
+**Consequences (testable):**
+- 失败计数在成功登录后归零
+- 锁定期间即使输入正确密码也返回 `ACCOUNT_LOCKED`
+- 5 分钟后自动解锁，无需手动干预
+- 锁定逻辑在密码哈希校验**之前**执行，避免被正确密码绕过
+
+#### FR-26: 用户登出
+点击顶部"登出"按钮 → 清除 LocalStorage 的 `ff_current_token` → 刷新回到登录页。
+
 ## 5. Non-Goals (Explicit)
 
-- 不做账号注册 / 登录 / 云同步
-- 不做后端服务器，不做 API
+- 不做后端服务器，不做 API（认证逻辑全部在前端 LocalStorage）
 - 不做移动端原生 App
 - 不做任务拖拽排序（v1 按创建时间排序）
 - 不做任务标签 / 分类 / 筛选除状态外的维度
 - 不做深色模式（v2）
 - 不做键盘快捷键（v2 考虑）
 - 不做番茄数可视化图表（仅数字显示）
+- 不做找回密码 / 邮箱验证
+- 不做多角色权限（管理员 / 普通用户）
 
 ## 6. MVP Scope
 
 ### 6.1 In Scope
+- 用户注册 + 登录 + 令牌 + 登出（FR-22 ~ FR-26）
+- 登录失败 5 次锁定 5 分钟
 - 任务 CRUD + 完成标记 + 状态筛选
 - 番茄钟三种模式 + 暂停恢复 + 跳过 + 结束提醒
 - 任务与计时的关联联动

@@ -431,3 +431,120 @@ input, textarea, select { font-family: inherit; }
   .stat-card { padding: 6px 12px; min-width: 70px; }
   .stat-value { font-size: 18px; }
 }
+
+/* ===== 辅助类 ===== */
+.hidden { display: none !important; }
+
+/* ===== 登录页 ===== */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #FFF5F4 0%, #F0FFF0 100%);
+  padding: 20px;
+}
+.auth-card {
+  background: #fff;
+  padding: 40px 36px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 380px;
+}
+.auth-logo {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-align: center;
+}
+.auth-subtitle {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  margin-top: 4px;
+  margin-bottom: 24px;
+}
+.auth-tabs {
+  display: flex;
+  background: var(--color-bg);
+  padding: 3px;
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+}
+.auth-tab {
+  flex: 1;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  color: var(--color-text-muted);
+  transition: all 0.2s;
+}
+.auth-tab.active {
+  background: var(--color-primary);
+  color: #fff;
+}
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.auth-field label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.auth-field input {
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+.auth-field input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+.auth-error {
+  min-height: 18px;
+  font-size: 12px;
+  color: var(--color-danger);
+  padding: 4px 0;
+}
+.auth-error.show {
+  padding: 8px 12px;
+  background: #FFECEC;
+  border-radius: var(--radius-sm);
+}
+.btn-block {
+  width: 100%;
+  padding: 12px;
+  font-size: 15px;
+  margin-top: 6px;
+}
+.auth-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-text-light);
+  margin-top: 18px;
+}
+
+/* ===== 用户区域 ===== */
+.user-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.user-name {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.btn-logout {
+  padding: 4px 12px;
+  font-size: 12px;
+}

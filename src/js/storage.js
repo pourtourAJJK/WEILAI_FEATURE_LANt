@@ -7,7 +7,11 @@
   var KEYS = {
     tasks: 'ff_tasks',
     settings: 'ff_settings',
-    pomodoroLogs: 'ff_pomodoro_logs'
+    pomodoroLogs: 'ff_pomodoro_logs',
+    users: 'ff_users',
+    authState: 'ff_auth_state',
+    currentToken: 'ff_current_token',
+    currentUsername: 'ff_current_username'
   };
 
   // 从 globalThis / global / window 获取 localStorage（跨环境兼容）
