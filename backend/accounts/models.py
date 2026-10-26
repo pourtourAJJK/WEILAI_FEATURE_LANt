@@ -8,10 +8,16 @@ from django.db import models
 
 
 class UserProfile(models.Model):
-    """扩展 User 的额外字段：登录失败计数 + 锁定时间戳"""
+    """扩展 User 的额外字段：登录锁定 + 头像"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     failed_attempts = models.PositiveIntegerField(default=0, verbose_name="连续失败次数")
     locked_until = models.DateTimeField(null=True, blank=True, verbose_name="锁定到期时间")
+    avatar = models.ImageField(
+        upload_to="avatars/",
+        null=True,
+        blank=True,
+        verbose_name="头像",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

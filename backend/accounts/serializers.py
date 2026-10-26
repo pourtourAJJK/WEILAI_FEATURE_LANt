@@ -41,8 +41,20 @@ class UserLoginSerializer(serializers.Serializer):
 
 
 class UserPublicSerializer(serializers.ModelSerializer):
-    """读取接口：安全暴露的用户字段（不含密码）"""
+    """读取接口：安全暴露的用户字段（不含密码），含头像 URL"""
+    avatar = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ("id", "username", "email", "is_active", "date_joined")
+        fields = ("id", "username", "email", "is_active", "date_joined", "avatar")
         read_only_fields = fields
+
+    def get_avatar(self, obj):
+        """从 UserProfile 拿头像并返回完整 URL（可被前端直接引用）"""
+        profile = getattr(obj, "profile", None)
+        if not profile or not profile.avatar:
+            return None
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(profile.avatar.url)
+        return profile.avatar.url

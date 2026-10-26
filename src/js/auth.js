@@ -180,6 +180,7 @@
     if (r.networkError) { backendAvailable = false; return LS_register(username, password); }
     if (r.ok) {
       saveSession(r.data.token, r.data.user.username);
+      saveAvatarFromUser(r.data.user);
       EventBus.emit("auth:login", { username: r.data.user.username });
       return { ok: true, token: r.data.token, user: r.data.user };
     }
@@ -199,6 +200,7 @@
     if (r.networkError) { backendAvailable = false; return LS_login(username, password); }
     if (r.ok) {
       saveSession(r.data.token, r.data.user.username);
+      saveAvatarFromUser(r.data.user);
       EventBus.emit("auth:login", { username: r.data.user.username });
       return { ok: true, token: r.data.token, user: r.data.user };
     }
@@ -228,6 +230,122 @@
 
   function forceLogout() { clearSession(); }
 
+  // ===== 头像 / 密码修改 =====
+  async function LS_changePassword(oldPwd, newPwd) {
+    var username = Storage.get("currentUsername", null);
+    if (!username) return { ok: false, message: "未登录" };
+
+    var users = LS_getUsers();
+    var user = users.find(function (u) { return u.username === username; });
+    if (!user) return { ok: false, message: "用户不存在" };
+
+    var oldHash = await sha256(oldPwd);
+    if (oldHash !== user.passwordHash) return { ok: false, message: "当前密码错误" };
+
+    if (newPwd.length < 6) return { ok: false, message: "新密码至少 6 位" };
+
+    user.passwordHash = await sha256(newPwd);
+    LS_setUsers(users);
+    return { ok: true, message: "密码已修改" };
+  }
+
+  async function LS_uploadAvatar(file) {
+    // 降级路径：读文件成 base64 DataURL 存 LocalStorage（key: ff_avatar_<username>）
+    var username = Storage.get("currentUsername", null);
+    if (!username) return { ok: false, message: "未登录" };
+
+    if (!file) return { ok: false, message: "未选择文件" };
+    if (file.size > 5 * 1024 * 1024) return { ok: false, message: "头像不能超过 5MB" };
+
+    var allowed = {"image/jpeg":1,"image/png":1,"image/gif":1,"image/webp":1};
+    if (!allowed[file.type]) return { ok: false, message: "仅支持 JPG/PNG/GIF/WebP" };
+
+    var dataUrl = await new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(reader.result); };
+      reader.onerror = function () { reject(new Error("读取文件失败")); };
+      reader.readAsDataURL(file);
+    });
+
+    Storage.set("ff_avatar_" + username, dataUrl);
+    Storage.set("currentAvatar", dataUrl);  // 全局会话字段，方便 user-area 直接读
+    EventBus.emit("auth:avatar-updated", { avatar: dataUrl });
+    return { ok: true, avatar: dataUrl };
+  }
+
+  function LS_getAvatar() {
+    var username = Storage.get("currentUsername", null);
+    if (!username) return null;
+    return Storage.get("ff_avatar_" + username, null);
+  }
+
+  // —— Django 路径专用：multipart/form-data 上传 ——
+  async function apiUpload(path, file, token) {
+    var fd = new FormData();
+    fd.append("avatar", file);
+    try {
+      var resp = await fetch(getApiBase() + path, {
+        method: "POST",
+        headers: token ? { "Authorization": "Token " + token } : {},
+        body: fd,
+      });
+      var data = null;
+      try { data = await resp.json(); } catch (e) {}
+      return { ok: resp.ok, status: resp.status, data: data };
+    } catch (e) {
+      return { ok: false, status: 0, networkError: true };
+    }
+  }
+
+  async function changePassword(oldPwd, newPwd) {
+    var backend = await ensureBackendStatus();
+    var token = Storage.get("currentToken", null);
+    if (!backend) return LS_changePassword(oldPwd, newPwd);
+
+    var r = await apiRequest(
+      "/auth/change-password/",
+      "POST",
+      { old_password: oldPwd, new_password: newPwd, confirm_password: newPwd },
+      token
+    );
+    if (r.networkError) { backendAvailable = false; return LS_changePassword(oldPwd, newPwd); }
+    if (r.ok) {
+      // Django 后端已自动删 token — 前端也清一下（双保险）
+      clearSession();
+      return { ok: true, message: r.data && r.data.message || "密码已修改，请重新登录" };
+    }
+    return { ok: false, message: (r.data && r.data.message) || "修改失败" };
+  }
+
+  async function uploadAvatar(file) {
+    var backend = await ensureBackendStatus();
+    var token = Storage.get("currentToken", null);
+    if (!backend) return LS_uploadAvatar(file);
+
+    var r = await apiUpload("/auth/avatar/", file, token);
+    if (r.networkError) { backendAvailable = false; return LS_uploadAvatar(file); }
+    if (r.ok && r.data) {
+      Storage.set("currentAvatar", r.data.avatar);
+      EventBus.emit("auth:avatar-updated", { avatar: r.data.avatar });
+      return { ok: true, avatar: r.data.avatar };
+    }
+    return { ok: false, message: (r.data && r.data.message) || "上传失败" };
+  }
+
+  function getAvatar() {
+    return Storage.get("currentAvatar", null) || LS_getAvatar();
+  }
+
+  // —— 登录/注册成功时也写入 currentAvatar（从返回的 user.avatar 字段）——
+  function saveAvatarFromUser(userData) {
+    if (userData && userData.avatar) {
+      Storage.set("currentAvatar", userData.avatar);
+      EventBus.emit("auth:avatar-updated", { avatar: userData.avatar });
+    } else {
+      Storage.remove("currentAvatar");
+    }
+  }
+
   global.Auth = {
     MAX_ATTEMPTS: MAX_ATTEMPTS,
     LOCK_MS: LOCK_MS,
@@ -237,6 +355,10 @@
     validateCurrentSession: validateCurrentSession,
     logout: logout,
     forceLogout: forceLogout,
+    changePassword: changePassword,
+    uploadAvatar: uploadAvatar,
+    getAvatar: getAvatar,
+    saveAvatarFromUser: saveAvatarFromUser,
     // 暴露状态（调试用）
     _isBackendAvailable: function () { return backendAvailable; },
   };

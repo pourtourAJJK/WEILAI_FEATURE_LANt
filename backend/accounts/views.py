@@ -51,7 +51,7 @@ class RegisterAPIView(generics.CreateAPIView):
             {
                 "ok": True,
                 "token": token.key,
-                "user": UserPublicSerializer(user).data,
+                "user": UserPublicSerializer(user, context={"request": request}).data,
             },
             status=status.HTTP_201_CREATED,
             headers=headers,
@@ -134,7 +134,88 @@ class LoginAPIView(APIView):
             {
                 "ok": True,
                 "token": token.key,
-                "user": UserPublicSerializer(user).data,
+                "user": UserPublicSerializer(user, context={"request": request}).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+# ============ 修改密码 ============
+class ChangePasswordAPIView(APIView):
+    """POST /api/auth/change-password — 校验旧密码后设置新密码"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        old_pwd = request.data.get("old_password", "")
+        new_pwd = request.data.get("new_password", "")
+        confirm = request.data.get("confirm_password", "")
+
+        if not old_pwd:
+            return Response({"ok": False, "message": "请输入当前密码"}, status=status.HTTP_400_BAD_REQUEST)
+        if len(new_pwd) < 6:
+            return Response({"ok": False, "message": "新密码至少 6 位"}, status=status.HTTP_400_BAD_REQUEST)
+        if new_pwd != confirm:
+            return Response({"ok": False, "message": "两次新密码不一致"}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        if not user.check_password(old_pwd):
+            return Response({"ok": False, "message": "当前密码错误"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user.set_password(new_pwd)
+        user.save()
+
+        # 所有已签发的 token 都失效 — 强制重新登录
+        from rest_framework.authtoken.models import Token
+        Token.objects.filter(user=user).delete()
+
+        return Response(
+            {"ok": True, "message": "密码已修改，请重新登录"},
+            status=status.HTTP_200_OK,
+        )
+
+
+# ============ 头像上传 ============
+ALLOWED_AVATAR_EXT = {"jpg", "jpeg", "png", "gif", "webp"}
+
+
+class AvatarUploadAPIView(APIView):
+    """POST /api/auth/avatar/ — multipart/form-data 上传头像文件"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        avatar = request.FILES.get("avatar")
+        if not avatar:
+            return Response({"ok": False, "message": "未收到文件 avatar"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 白名单校验
+        name = avatar.name.lower()
+        ext = name.rsplit(".", 1)[-1] if "." in name else ""
+        if ext not in ALLOWED_AVATAR_EXT:
+            return Response(
+                {"ok": False, "message": f"仅支持 {', '.join(sorted(ALLOWED_AVATAR_EXT))}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 大小校验（5MB 与 settings 对齐）
+        if avatar.size > 5 * 1024 * 1024:
+            return Response({"ok": False, "message": "头像不能超过 5MB"}, status=status.HTTP_400_BAD_REQUEST)
+
+        profile = _ensure_profile(request.user)
+
+        # 删旧文件（可选，避免 media 目录无限增长）
+        if profile.avatar and profile.avatar.name:
+            try: profile.avatar.delete(save=False)
+            except Exception: pass
+
+        # 重命名：<user_id>_<timestamp>.<ext>，避免冲突
+        import time
+        safe_name = f"{request.user.id}_{int(time.time())}.{ext}"
+        profile.avatar.save(safe_name, avatar, save=True)
+
+        return Response(
+            {
+                "ok": True,
+                "avatar": request.build_absolute_uri(profile.avatar.url),
             },
             status=status.HTTP_200_OK,
         )

@@ -74,6 +74,14 @@ USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# ===== Media（头像上传）=====
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+# ===== 文件上传限制 =====
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
+
 # ===== CORS =====
 CORS_ALLOW_ALL_ORIGINS = True  # 开发用，允许前端从任意端口访问
 
